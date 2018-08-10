@@ -1,0 +1,29 @@
+{
+  "name": "redux-ergo",
+  "version": "0.1.0",
+  "description": "An ergonomic approach to work with redux",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/hackape/redux-ergo.git"
+  },
+  "keywords": [
+    "redux",
+    "state management"
+  ],
+  "author": "hackape",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hackape/redux-ergo/issues"
+  },
+  "homepage": "https://github.com/hackape/redux-ergo#readme",
+  "devDependencies": {
+    "typescript": "^2.9.2"
+  },
+  "dependencies": {
+    "invariant": "^2.2.4"
+  }
+}
