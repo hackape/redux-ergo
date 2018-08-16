@@ -25,3 +25,22 @@ export function setByPath(target, path, value) {
   }, tempContext);
   return tempContext[''];
 }
+
+export const fillInPathParams = (path: string, pathParams: any) => {
+  if (typeof path !== 'string' || typeof pathParams !== 'object') {
+    throw Error('Invalid path input');
+  }
+  const pathComps = path.split('/');
+  return pathComps
+    .map(pathComp => {
+      if (pathComp[0] === ':') {
+        const pathParamValue = pathParams[pathComp.slice(1)];
+        if (pathParamValue === undefined) {
+          throw Error(`Missing path params ${pathComp}`);
+        } else {
+          return pathParamValue;
+        }
+      }
+    })
+    .join('/');
+};
