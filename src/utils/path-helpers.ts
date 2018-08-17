@@ -42,6 +42,8 @@ export const fillInPathParams = (path: string, pathParams: any) => {
           } else {
             return pathParamValue;
           }
+        } else {
+          return pathComp;
         }
       })
       .join('/');
