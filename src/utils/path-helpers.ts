@@ -48,7 +48,7 @@ export const fillInPathParams = (path: string, pathParams: any) => {
       })
       .join('/');
   } catch (err) {
-    console.error(err);
+    console && console.error && console.error(err);
     return null;
   }
 };
