@@ -2,7 +2,7 @@ import { isFunction } from './utils/is';
 import { mutable, getValue } from './utils/im-mutable';
 import { getByPath, setByPath, fillInPathParams } from './utils/path-helpers';
 import { isEffect } from './effectDecorator';
-import { IAction, dispatch } from './middleware';
+import { dispatch } from './middleware';
 
 const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
 
@@ -53,7 +53,10 @@ const WorkerFactory = (proto, methodName) => (prevState: any, action: IAction) =
   }
 };
 
-const GatewayFactory = (__nsp__, __path__, workers) => (rootState: any, action: IAction) => {
+const GatewayFactory = (__nsp__: string, __path__: string, workers: { [x: string]: Function }) => (
+  rootState: any,
+  action: IAction
+) => {
   const actionInfo = processActionType(action);
   if (!actionInfo) return rootState;
   const { namespace, path, method } = actionInfo;
@@ -75,16 +78,22 @@ const GatewayFactory = (__nsp__, __path__, workers) => (rootState: any, action: 
   return setByPath(rootState, effectivePath, newLocalState);
 };
 
-export function transpile(spec, path?, namespace?) {
+export function transpile<S extends new (...args: any[]) => any>(
+  Spec: S,
+  path?: string,
+  namespace?: string
+) {
+  type Proto = InstanceType<S>;
   // tslint:disable-next-line
+  const spec: any = Spec;
   const __path__ = path || spec.path || '';
   const __nsp__ = namespace || spec.namespace || '';
 
-  let proto = spec.prototype || {};
+  let proto: Proto = spec.prototype || {};
   let protoKey = Object.getOwnPropertyNames(proto);
 
   const getActions = (pathParams?: { [x: string]: string | number }) => {
-    if (!isPathPattern(__path__)) return { ...actions };
+    if (!isPathPattern(__path__)) return { ...actions } as ActionsOf<Proto>;
 
     const bindedActions = {};
     for (const methodName in actions) {
@@ -96,7 +105,7 @@ export function transpile(spec, path?, namespace?) {
         };
       };
     }
-    return bindedActions;
+    return bindedActions as ActionsOf<Proto>;
   };
 
   const actions = {};
