@@ -1,15 +1,5 @@
 let _dispatch;
 
-export type IAction = {
-  type: string;
-  meta?: {
-    params?: { [x: string]: string | number };
-    finalize?: boolean;
-  };
-  payload?: any;
-  error?: boolean;
-};
-
 type IEffector = (state, IAction) => IAction;
 
 export interface IErgoMiddleware {
