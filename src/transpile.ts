@@ -1,158 +1,116 @@
-import { isFunction } from './utils/is';
-import { mutable, getValue } from './utils/im-mutable';
-import { getByPath, setByPath, fillInPathParams } from './utils/path-helpers';
 import { isEffect } from './effectDecorator';
-import { dispatch } from './middleware';
+import { isFunction } from './utils/is';
+import { workerFactory } from './worker';
+import { gatewayFactory } from './gateway';
 
-const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
-
-const getMutableStateWithProto = (plainStateObject, proto) => {
-  const oldProto = plainStateObject.__proto__;
-  plainStateObject.__proto__ = proto;
-  const mutableState = mutable(plainStateObject);
-  plainStateObject.__proto__ = oldProto;
-  return mutableState;
-};
-
-// action type pattern is "namespace/path/method"
-const processActionType = action => {
-  if (!action || typeof action.type !== 'string') return null;
-  const matched = action.type.match(/^([^\/]*)((?:\/[^\/]+)*)\/([^\/]+)$/);
-  if (!matched) return null;
-  const [type, namespace, path, method] = matched;
-  return { type, namespace, path, method };
-};
-
-const WorkerFactory = (proto, methodName) => (prevState: any, action: IAction) => {
-  // if finalize, simply return finalized state
-  if (action.meta && action.meta.finalize) return action.payload;
-
-  // save action.type and action.meta for later use
-  const actionType = action.type;
-  const actionMeta = action.meta && action.meta.params ? { params: { ...action.meta.params } } : {};
-
-  // actually call the fn()
-  const mutableState = getMutableStateWithProto(prevState, proto);
-  const retValue = proto[methodName].apply(mutableState, action.payload);
-
-  if (retValue instanceof Promise) {
-    retValue.then(value => {
-      const nextState = getValue(mutableState);
-
-      dispatch({
-        type: actionType,
-        meta: { ...actionMeta, finalize: true },
-        payload: nextState
-      });
-    });
-
-    return prevState;
-  } else {
-    const nextState = getValue(mutableState);
-    return nextState;
-  }
-};
-
-const GatewayFactory = (__nsp__: string, __path__: string, workers: { [x: string]: Function }) => (
-  rootState: any,
-  action: IAction
-) => {
-  const actionInfo = processActionType(action);
-  if (!actionInfo) return rootState;
-  const { namespace, path, method } = actionInfo;
-  if (namespace !== __nsp__ || path !== __path__) return rootState;
-
-  const worker = workers[method];
-  if (!worker) return rootState;
-
-  let effectivePath = path;
-  if (isPathPattern(__path__)) {
-    const pathParams = (action.meta && action.meta.params) || {};
-    effectivePath = fillInPathParams(path, pathParams);
-  }
-  if (effectivePath === null) return rootState;
-
-  const localState = getByPath(rootState, effectivePath);
-  const newLocalState = worker(localState, action);
-  if (newLocalState === localState) return rootState;
-  return setByPath(rootState, effectivePath, newLocalState);
-};
-
-export function transpile<S extends new (...args: any[]) => any>(
-  Spec: S,
+export function transpile<S, P, R extends Workers<S>, E extends Workers<S>>(
+  spec: ISpecObject<S, P, R, E>,
   path?: string,
   namespace?: string
-) {
-  type Proto = InstanceType<S>;
-  // tslint:disable-next-line
-  const spec: any = Spec;
+): {
+  bindActions: (
+    params?: P extends {} ? any : P
+  ) => {
+    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator1<
+      (E extends undefined ? R : R & E)[K]
+    >
+  };
+
+  actions: {
+    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator1<
+      (E extends undefined ? R : R & E)[K]
+    >
+  };
+  reducer: (rootState: any, action: IAction) => any;
+  effector: (rootState: any, action: IAction) => any;
+};
+
+export function transpile<S, P, R>(
+  spec: ISpecClass<S, P, R>,
+  path?: string,
+  namespace?: string
+): {
+  bindActions: (params?: P extends {} ? any : P) => { [K in MethodProps<R>]: ActionCreator<R[K]> };
+  actions: { [K in MethodProps<R>]: ActionCreator<R[K]> };
+  reducer: (rootState: any, action: IAction) => any;
+  effector: (rootState: any, action: IAction) => any;
+};
+
+export function transpile(spec: any, path?: string, namespace?: string) {
+  let mode: 'FP' | 'OO';
+
   const __path__ = path || spec.path || '';
   const __nsp__ = namespace || spec.namespace || '';
 
-  let proto: Proto = spec.prototype || {};
-  let protoKey = Object.getOwnPropertyNames(proto);
-
-  const getActions = (pathParams?: { [x: string]: string | number }) => {
-    if (!isPathPattern(__path__)) return { ...actions } as ActionsOf<Proto>;
-
-    const bindedActions = {};
-    for (const methodName in actions) {
-      bindedActions[methodName] = (...args) => {
-        return {
-          type: `${__nsp__}${__path__}/${methodName}`,
-          meta: { params: pathParams },
-          payload: args
-        };
-      };
-    }
-    return bindedActions as ActionsOf<Proto>;
-  };
+  let specReducers = {};
+  let specEffects = {};
+  let specDerives = {};
 
   const actions = {};
   const reducers = {};
   const effectors = {};
 
-  for (const key of protoKey) {
-    // do not touch contructor
-    if (key === 'constructor') continue;
+  let proto;
+  if (isFunction(spec)) {
+    mode = 'OO';
+    proto = spec.prototype || {};
+    const protoKey = Object.getOwnPropertyNames(proto);
+    for (const key of protoKey) {
+      if (key === 'constructor') continue;
+      const desc = Object.getOwnPropertyDescriptor(proto, key) || {};
 
-    // get vanilla descriptor
-    const desc = Object.getOwnPropertyDescriptor(proto, key) || {};
-
-    // case 1: is method
-    if (isFunction(desc.value)) {
-      const methodName = key;
-      const fn = desc.value;
-      if (isEffect(fn)) {
-        actions[methodName] = (...args) => {
-          return {
-            type: `${__nsp__}${__path__}/${methodName}`,
-            meta: { ergoEffect: true },
-            payload: args
-          };
-        };
-
-        effectors[methodName] = WorkerFactory(proto, methodName);
-        reducers[methodName] = (prevState, action: IAction) => {
-          if (action.meta && action.meta.finalize) return action.payload;
-        };
-      } else {
-        actions[methodName] = (...args) => {
-          return {
-            type: `${__nsp__}${__path__}/${methodName}`,
-            payload: args
-          };
-        };
-
-        reducers[methodName] = WorkerFactory(proto, methodName);
+      if (isFunction(desc.value)) {
+        if (isEffect(desc.value)) {
+          specEffects[key] = desc.value;
+        } else {
+          specReducers[key] = desc.value;
+        }
+      } else if (isFunction(desc.get)) {
+        specDerives[key] = desc;
       }
-    } else if (isFunction(desc.get)) {
     }
+  } else {
+    mode = 'FP';
+    specReducers = spec.reducers;
+    specEffects = spec.effects;
+    proto = { ...specReducers, ...specEffects };
+  }
+
+  for (const methodName in specReducers) {
+    actions[methodName] = (...args) => ({
+      type: `${__nsp__}${__path__}/${methodName}`,
+      payload: args
+    });
+
+    reducers[methodName] = workerFactory(mode, proto, methodName);
+  }
+
+  for (const methodName in specEffects) {
+    actions[methodName] = (...args) => ({
+      type: `${__nsp__}${__path__}/${methodName}`,
+      meta: { ergoEffect: true },
+      payload: args
+    });
+
+    effectors[methodName] = workerFactory(mode, proto, methodName);
+    reducers[methodName] = (prevState: any, action: IAction) => {
+      if (action.meta && action.meta.finalize) return action.payload;
+    };
   }
 
   return {
-    getActions,
-    effector: GatewayFactory(__nsp__, __path__, effectors),
-    reducer: GatewayFactory(__nsp__, __path__, reducers)
+    actions,
+    effector: gatewayFactory(__nsp__, __path__, effectors),
+    reducer: gatewayFactory(__nsp__, __path__, reducers, specDerives)
   };
 }
+
+export default transpile;
+
+const model = transpile({
+  reducers: {
+    me(state, yolo: number) {}
+  }
+});
+
+model.bindActions;
