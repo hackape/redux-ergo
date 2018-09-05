@@ -1,4 +1,4 @@
-import { isEffect } from './effectDecorator';
+import { isEffect } from './effect';
 import { isFunction } from './utils/is';
 import { workerFactory } from './worker';
 import { gatewayFactory } from './gateway';

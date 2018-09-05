@@ -1,6 +1,7 @@
 import { mutable, getValue } from './utils/im-mutable';
 import { isPromise, isGenerator } from './utils/is';
 import { dispatch } from './middleware';
+import { shouldUpdateState, iterateGenerator } from './effect';
 
 const getMutableStateWithProto = (plainStateObject, proto) => {
   const oldProto = plainStateObject.__proto__;
@@ -14,7 +15,7 @@ const finalizeActionFactory = action => {
   const params = action.meta && action.meta.params;
   const finalizeAction = {
     type: action.type,
-    meta: { finalize: true }
+    meta: { finalize: true } as any
   };
   if (params) (finalizeAction.meta as any).params = params;
   return payload => ({ ...finalizeAction, payload });
@@ -25,23 +26,36 @@ export const workerFactory = (mode, workers, methodName) => {
     return (prevState: any, action: IAction) => {
       // if finalize, simply return finalized state
       if (action.meta && action.meta.finalize) return action.payload;
+      const getFinalizeAction = finalizeActionFactory(action);
 
       // actually call the fn()
       const mutableState = getMutableStateWithProto(prevState, workers);
-      const retValue = workers[methodName].apply(mutableState, action.payload);
+      const ret = workers[methodName].apply(mutableState, action.payload);
 
-      if (isPromise(retValue)) {
-        const getFinalizeAction = finalizeActionFactory(action);
-
-        retValue.then(value => {
+      if (isPromise(ret)) {
+        // 1. ret is a promise, meaning worker is async func
+        // async threads:
+        ret.then(() => {
           const nextState = getValue(mutableState);
-          dispatch(getFinalizeAction(nextState));
+          if (nextState !== prevState) dispatch(getFinalizeAction(nextState));
         });
 
-        return prevState;
-      } else if (isGenerator(retValue)) {
-        // TODO: to be implemented
+        return prevState; // no op in sync thread
+      } else if (isGenerator(ret)) {
+        // 2. ret is a generator, meaning worker is generator func
+        // async threads:
+        iterateGenerator(ret, (__, stepId) => {
+          const nextState = getValue(mutableState);
+          if (nextState !== prevState) {
+            const msg = getFinalizeAction(nextState);
+            msg.meta.stepId = stepId;
+            dispatch(msg);
+          }
+        });
+
+        return prevState; // no op in sync thread
       } else {
+        // 3. sync worker, normal reducer
         const nextState = getValue(mutableState);
         return nextState;
       }
@@ -51,17 +65,32 @@ export const workerFactory = (mode, workers, methodName) => {
     return (prevState: any, action: IAction) => {
       // if finalize, simply return finalized state
       if (action.meta && action.meta.finalize) return action.payload;
+      const getFinalizeAction = finalizeActionFactory(action);
 
-      const retValue = workers[methodName].call(workers, prevState, ...action.payload);
-      if (isPromise(retValue)) {
-        const getFinalizeAction = finalizeActionFactory(action);
-        retValue.then(value => {
-          dispatch(getFinalizeAction(value));
+      const ret = workers[methodName].call(workers, prevState, ...action.payload);
+      if (isPromise(ret)) {
+        // 1. ret is a promise, meaning worker is async func
+        // async threads:
+        ret.then(res => {
+          if (shouldUpdateState(res)) dispatch(getFinalizeAction(res.value));
         });
-      } else if (isGenerator(retValue)) {
-        // TODO: to be implemented
+
+        return prevState; // no op in sync thread
+      } else if (isGenerator(ret)) {
+        // 2. ret is a generator, meaning worker is generator func
+        // async threads:
+        iterateGenerator(ret, (res, stepId) => {
+          if (shouldUpdateState(res)) {
+            const msg = getFinalizeAction(res.value);
+            msg.meta.stepId = stepId;
+            dispatch(msg);
+          }
+        });
+
+        return prevState; // no op in sync thread
       } else {
-        return retValue;
+        // 3. sync worker, normal reducer
+        return ret;
       }
     };
   }
