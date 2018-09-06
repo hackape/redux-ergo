@@ -1,5 +1,5 @@
 import { getByPath, setByPath, fillInPathParams } from '../utils/path-helpers';
-import { isPlainObject } from '../utils/is';
+// import { isPlainObject } from '../utils/is';
 import { IAction } from './transpile';
 
 const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
@@ -18,6 +18,7 @@ function parseAction(__nsp__, __path__, action): [boolean, string | null] {
   return [isOwnScope, method];
 }
 
+/* FIXME: temp disable derives
 const DERIVED_SYMBOL = Symbol ? Symbol('__DERIVED_SYMBOL__') : '__DERIVED_SYMBOL__';
 function applyDerives(target, derives) {
   if (isPlainObject(target) && isPlainObject(derives)) {
@@ -33,6 +34,7 @@ function applyDerives(target, derives) {
   }
   return target;
 }
+*/
 
 export const gatewayFactory = (
   __nsp__: string,
@@ -76,7 +78,8 @@ export const gatewayFactory = (
 
     // 3. best case, both `effectivePath` and `worker` exist.
     if (worker) localState = worker(localState, action);
-    const newLocalState = applyDerives(localState, derives);
+    // const newLocalState = applyDerives(localState, derives);
+    const newLocalState = localState;
 
     if (newLocalState === oldLocalState) {
       return rootState;
