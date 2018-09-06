@@ -43,7 +43,7 @@ export const gatewayFactory = (
   derives?: { [x: string]: PropertyDescriptor },
   initialState?: any
 ) => {
-  const isStablePath = isPathPattern(__path__);
+  const isStablePath = !isPathPattern(__path__);
 
   return (rootState: any, action: IAction) => {
     const [isOwnScope, method] = parseAction(__nsp__, __path__, action);
