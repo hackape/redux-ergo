@@ -129,8 +129,24 @@ export function transpile(spec: any, path?: string, namespace?: string) {
     };
   }
 
+  const bindActions = (params: any) => {
+    const bindedActions = {};
+    for (const methodName in actions) {
+      bindedActions[methodName] = (...args) => {
+        const msg = actions[methodName](...args);
+        if (params) {
+          if (!msg.meta) msg.meta = {};
+          msg.meta.params = { ...params };
+        }
+        return msg;
+      };
+    }
+    return bindedActions;
+  };
+
   return {
     actions,
+    bindActions,
     effector: gatewayFactory(__nsp__, __path__, effectors),
     reducer: gatewayFactory(__nsp__, __path__, reducers, specDerives)
   };
