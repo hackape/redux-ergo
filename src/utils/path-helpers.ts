@@ -45,28 +45,23 @@ export function setByPath(target, path, value) {
 }
 
 export const fillInPathParams = (path: string | null, pathParams: any) => {
-  try {
-    if (typeof path !== 'string' || typeof pathParams !== 'object') {
-      throw Error('Invalid path input');
-    }
-
-    const pathComps = path.split('/');
-    return pathComps
-      .map(pathComp => {
-        if (pathComp[0] === ':') {
-          const pathParamValue = pathParams[pathComp.slice(1)];
-          if (pathParamValue === undefined) {
-            throw Error(`Missing path params ${pathComp}`);
-          } else {
-            return pathParamValue;
-          }
-        } else {
-          return pathComp;
-        }
-      })
-      .join('/');
-  } catch (err) {
-    console && console.error && console.error(err);
-    return null;
+  if (typeof path !== 'string' || typeof pathParams !== 'object') {
+    throw Error('Invalid path or pathParams');
   }
+
+  const pathComps = path.split('/');
+  return pathComps
+    .map(pathComp => {
+      if (pathComp[0] === ':') {
+        const pathParamValue = pathParams[pathComp.slice(1)];
+        if (pathParamValue === undefined) {
+          throw Error(`Missing path params "${pathComp}"`);
+        } else {
+          return String(pathParamValue);
+        }
+      } else {
+        return pathComp;
+      }
+    })
+    .join('/');
 };

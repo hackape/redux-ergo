@@ -4,18 +4,18 @@ import { IAction } from './transpile';
 
 const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
 
-function parseAction(__nsp__, __path__, action): [boolean, string | null, string | null] {
+function parseAction(__nsp__, __path__, action): [boolean, string | null] {
   // 1. validate `action.type` matches the "namespace/path/method" pattern
-  if (!action || typeof action.type !== 'string') return [false, null, null];
+  if (!action || typeof action.type !== 'string') return [false, null];
   const matched = (action.type as string).match(/^([^\/]*)((?:\/[^\/]+)*)\/([^\/]+)$/);
-  if (!matched) return [false, null, null];
+  if (!matched) return [false, null];
 
   // 2. validate `path` and `namespace` match spec
   let isOwnScope = false;
   const [namespace, path, method] = matched.slice(1);
   if (namespace === __nsp__ && path === __path__) isOwnScope = true;
 
-  return [isOwnScope, path, method];
+  return [isOwnScope, method];
 }
 
 const DERIVED_SYMBOL = Symbol ? Symbol('__DERIVED_SYMBOL__') : '__DERIVED_SYMBOL__';
@@ -40,34 +40,48 @@ export const gatewayFactory = (
   workers: { [x: string]: Function },
   derives?: { [x: string]: PropertyDescriptor },
   initialState?: any
-) => (rootState: any, action: IAction) => {
-  const [isOwnScope, actionPath, method] = parseAction(__nsp__, __path__, action);
+) => {
+  const isStablePath = isPathPattern(__path__);
 
-  const worker = isOwnScope && method !== null ? workers[method] : undefined;
+  return (rootState: any, action: IAction) => {
+    const [isOwnScope, method] = parseAction(__nsp__, __path__, action);
 
-  let effectivePath;
-  if (isPathPattern(__path__)) {
-    const pathParams = (action.meta && action.meta.params) || {};
-    effectivePath = fillInPathParams(actionPath, pathParams);
-  } else {
-    effectivePath = __path__;
-  }
+    const worker = isOwnScope && method !== null ? workers[method] : undefined;
 
-  // 1. if `effectivePath` is null, there is nothing we can do, not even provide the `initialState`.
-  if (!effectivePath) return rootState;
-  const oldLocalState = getByPath(rootState, effectivePath);
+    let effectivePath: any = null;
 
-  // 2. if we have `effectivePath`, but not `worker`, we can at least provide the `initialState`
-  // equivalent to `reducer(state = initialState, action)`
-  let localState = oldLocalState === undefined ? initialState : oldLocalState;
+    if (isStablePath) {
+      effectivePath = __path__;
+    } else {
+      if (isOwnScope) {
+        const pathParams = (action.meta && action.meta.params) || undefined;
+        try {
+          effectivePath = fillInPathParams(__path__, pathParams);
+        } catch (err) {
+          console && console.warn && console.warn(err);
+          effectivePath = null;
+        }
+      } else {
+        effectivePath = null;
+      }
+    }
 
-  // 3. best case, both `effectivePath` and `worker` exist.
-  if (worker) localState = worker(localState, action);
-  const newLocalState = applyDerives(localState, derives);
+    // 1. if `effectivePath` is null, there is nothing we can do, not even provide the `initialState`.
+    if (effectivePath === null) return rootState;
+    const oldLocalState = getByPath(rootState, effectivePath);
 
-  if (newLocalState === oldLocalState) {
-    return rootState;
-  } else {
-    return setByPath(rootState, effectivePath, newLocalState);
-  }
+    // 2. if we have `effectivePath`, but not `worker`, we can at least provide the `initialState`
+    // equivalent to `reducer(state = initialState, action)`
+    let localState = oldLocalState === undefined ? initialState : oldLocalState;
+
+    // 3. best case, both `effectivePath` and `worker` exist.
+    if (worker) localState = worker(localState, action);
+    const newLocalState = applyDerives(localState, derives);
+
+    if (newLocalState === oldLocalState) {
+      return rootState;
+    } else {
+      return setByPath(rootState, effectivePath, newLocalState);
+    }
+  };
 };
