@@ -1,4 +1,4 @@
-import { isFunction } from './utils/is';
+import { isFunction } from '../utils/is';
 const isEffectSymbol = Symbol('isEffect');
 const isEffectUpdateSymbol = Symbol('isEffectUpdate');
 

@@ -1,9 +1,19 @@
+import { isFunction } from '../utils/is';
 import { isEffect } from './effect';
-import { isFunction } from './utils/is';
-import { workerFactory } from './worker';
+import { workerFactory, IWorkers } from './worker';
 import { gatewayFactory } from './gateway';
 
-export function transpile<S, P, R extends Workers<S>, E extends Workers<S>>(
+export type IAction = {
+  type: string;
+  meta?: {
+    params?: { [x: string]: string | number };
+    finalize?: boolean;
+  };
+  payload?: any;
+  error?: boolean;
+};
+
+export function transpile<S, P, R extends IWorkers<S>, E extends IWorkers<S>>(
   spec: ISpecObject<S, P, R, E>,
   path?: string,
   namespace?: string
@@ -11,13 +21,13 @@ export function transpile<S, P, R extends Workers<S>, E extends Workers<S>>(
   bindActions: (
     params?: P extends {} ? any : P
   ) => {
-    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator1<
+    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator<
       (E extends undefined ? R : R & E)[K]
     >
   };
 
   actions: {
-    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator1<
+    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator<
       (E extends undefined ? R : R & E)[K]
     >
   };
@@ -30,8 +40,8 @@ export function transpile<S, P, R>(
   path?: string,
   namespace?: string
 ): {
-  bindActions: (params?: P extends {} ? any : P) => { [K in MethodProps<R>]: ActionCreator<R[K]> };
-  actions: { [K in MethodProps<R>]: ActionCreator<R[K]> };
+  bindActions: (params?: P extends {} ? any : P) => { [K in MethodProps<R>]: ActionCreator1<R[K]> };
+  actions: { [K in MethodProps<R>]: ActionCreator1<R[K]> };
   reducer: (rootState: any, action: IAction) => any;
   effector: (rootState: any, action: IAction) => any;
 };
@@ -104,13 +114,3 @@ export function transpile(spec: any, path?: string, namespace?: string) {
     reducer: gatewayFactory(__nsp__, __path__, reducers, specDerives)
   };
 }
-
-export default transpile;
-
-const model = transpile({
-  reducers: {
-    me(state, yolo: number) {}
-  }
-});
-
-model.bindActions;

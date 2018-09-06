@@ -1,7 +1,12 @@
-import { mutable, getValue } from './utils/im-mutable';
-import { isPromise, isGenerator } from './utils/is';
+import { mutable, getValue } from '../utils/im-mutable';
+import { isPromise, isGenerator } from '../utils/is';
 import { dispatch } from './middleware';
 import { shouldUpdateState, iterateGenerator } from './effect';
+import { IAction } from './transpile';
+
+export type IWorkers<S> = {
+  [x: string]: (state: S extends {} ? any : S, ...args: any[]) => any;
+};
 
 const getMutableStateWithProto = (plainStateObject, proto) => {
   const oldProto = plainStateObject.__proto__;

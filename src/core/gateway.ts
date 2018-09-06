@@ -1,5 +1,6 @@
-import { getByPath, setByPath, fillInPathParams } from './utils/path-helpers';
-import { isPlainObject } from './utils/is';
+import { getByPath, setByPath, fillInPathParams } from '../utils/path-helpers';
+import { isPlainObject } from '../utils/is';
+import { IAction } from './transpile';
 
 const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
 

@@ -1,4 +1,4 @@
-let _dispatch;
+import { IAction } from './transpile';
 
 type IEffector = (state, IAction) => IAction;
 
@@ -7,7 +7,9 @@ export interface IErgoMiddleware {
   run: (effector: IEffector) => void;
 }
 
+let _dispatch;
 const effectorQueue: IEffector[] = [];
+
 export const middleware = (({ getState, dispatch }) => {
   _dispatch = dispatch;
 
