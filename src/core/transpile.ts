@@ -13,6 +13,27 @@ export type IAction = {
   error?: boolean;
 };
 
+type MethodProps<T> = ({ [K in keyof T]: T[K] extends Function ? K : never })[keyof T];
+type ActionCreator<T> = T extends (s: any, ...args: infer A) => any ? (...args: A) => IAction : T;
+type ActionCreator1<T> = T extends (...args: infer A) => any ? (...args: A) => IAction : T;
+
+interface ISpecObject<S, P, R, E> {
+  path?: string;
+  pathParams?: P;
+  namespace?: string;
+  defaultState?: S;
+  reducers: R;
+  effects?: E;
+}
+
+interface ISpecClass<S, P, R> {
+  new (): R;
+  path?: string;
+  pathParams?: P;
+  namespace?: string;
+  defaultState?: S;
+}
+
 export function transpile<S, P, R extends IWorkers<S>, E extends IWorkers<S>>(
   spec: ISpecObject<S, P, R, E>,
   path?: string,
