@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "ts-build": "rm -rf lib && tsc --pretty"
+    "ts-build": "rm -rf lib && tsc --pretty",
+    "prepare": "npm run ts-build"
   },
   "repository": {
     "type": "git",
@@ -17,6 +18,10 @@
   ],
   "author": "hackape",
   "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
   "bugs": {
     "url": "https://github.com/hackape/redux-ergo/issues"
   },
