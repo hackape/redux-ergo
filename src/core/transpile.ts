@@ -34,46 +34,67 @@ interface ISpecClass<S, P, R> {
   defaultState?: S;
 }
 
-export function transpile<S, P, R extends IWorkers<S>, E extends IWorkers<S>>(
-  spec: ISpecObject<S, P, R, E>,
-  path?: string,
-  namespace?: string
-): {
-  bindActions: (
-    params?: P extends {} ? any : P
-  ) => {
-    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator<
-      (E extends undefined ? R : R & E)[K]
-    >
-  };
+type IOverride<P, S> = {
+  path?: string;
+  namespace?: string;
+  pathParams?: P;
+  defaultState?: S;
+};
 
+export function transpile<S, P, R extends IWorkers<S>, E extends IWorkers<S>>(
+  spec: ISpecObject<S, P, R, E>
+): {
   actions: {
-    [K in keyof (E extends undefined ? R : R & E)]: ActionCreator<
-      (E extends undefined ? R : R & E)[K]
-    >
+    [K in keyof (E extends undefined ? R : R & E)]: P extends {}
+      ? ActionCreator<(E extends undefined ? R : R & E)[K]>
+      : (params: P) => ActionCreator<(E extends undefined ? R : R & E)[K]>
+  };
+  reducer: (rootState: any, action: IAction) => any;
+  effector: (rootState: any, action: IAction) => any;
+};
+export function transpile<S, P, R extends IWorkers<S>, E extends IWorkers<S>>(
+  spec: ISpecObject<any, any, R, E>,
+  override: IOverride<P, S>
+): {
+  actions: {
+    [K in keyof (E extends undefined ? R : R & E)]: P extends {}
+      ? ActionCreator<(E extends undefined ? R : R & E)[K]>
+      : (params: P) => ActionCreator<(E extends undefined ? R : R & E)[K]>
   };
   reducer: (rootState: any, action: IAction) => any;
   effector: (rootState: any, action: IAction) => any;
 };
 
 export function transpile<S, P, R>(
-  spec: ISpecClass<S, P, R>,
-  path?: string,
-  namespace?: string
+  spec: ISpecClass<S, P, R>
 ): {
-  bindActions: (params?: P extends {} ? any : P) => { [K in MethodProps<R>]: ActionCreator1<R[K]> };
-  actions: { [K in MethodProps<R>]: ActionCreator1<R[K]> };
+  actions: {
+    [K in MethodProps<R>]: P extends {} ? ActionCreator1<R[K]> : (params: P) => ActionCreator1<R[K]>
+  };
+  reducer: (rootState: any, action: IAction) => any;
+  effector: (rootState: any, action: IAction) => any;
+};
+export function transpile<S, P, R>(
+  spec: ISpecClass<any, any, R>,
+  override: IOverride<P, S>
+): {
+  spec: typeof spec;
+  actions: {
+    [K in MethodProps<R>]: P extends {} ? ActionCreator1<R[K]> : (params: P) => ActionCreator1<R[K]>
+  };
   reducer: (rootState: any, action: IAction) => any;
   effector: (rootState: any, action: IAction) => any;
 };
 
-export function transpile(spec: any, path?: string, namespace?: string) {
+export function transpile(spec: any, override?: any) {
   let mode: 'FP' | 'OO';
+  if (!override) override = {};
 
-  const __path__ = path || spec.path || '';
-  const __nsp__ = namespace || spec.namespace || '';
+  const __path__ = override.path || spec.path || '';
+  const __nsp__ = override.namespace || spec.namespace || '';
+  const __params__ = override.pathParams || spec.pathParams;
 
-  const defaultState = spec.defaultState;
+  const defaultState = override.defaultState || spec.defaultState;
 
   let specReducers = {};
   let specEffects = {};
@@ -133,24 +154,20 @@ export function transpile(spec: any, path?: string, namespace?: string) {
     };
   }
 
-  const bindActions = (params: any) => {
-    const bindedActions = {};
-    for (const methodName in actions) {
-      bindedActions[methodName] = (...args) => {
-        const msg = actions[methodName](...args);
-        if (params) {
-          if (!msg.meta) msg.meta = {};
-          msg.meta.params = { ...params };
-        }
-        return msg;
-      };
-    }
-    return bindedActions;
-  };
+  const curriedActions = {};
+  for (const methodName in actions) {
+    curriedActions[methodName] = params => (...args) => {
+      const msg = actions[methodName](...args);
+      if (params) {
+        if (!msg.meta) msg.meta = {};
+        msg.meta.params = { ...params };
+      }
+      return msg;
+    };
+  }
 
   return {
-    actions,
-    bindActions,
+    actions: __params__ ? curriedActions : actions,
     effector: gatewayFactory(__nsp__, __path__, effectors, specDerive, defaultState),
     reducer: gatewayFactory(__nsp__, __path__, reducers, specDerive, defaultState)
   };
