@@ -7,10 +7,12 @@ export interface IErgoMiddleware {
   run: (effector: IEffector) => void;
 }
 
+let _getState;
 let _dispatch;
 const effectorQueue: IEffector[] = [];
 
 export const middleware = (({ getState, dispatch }) => {
+  _getState = getState;
   _dispatch = dispatch;
 
   return next => action => {
@@ -34,4 +36,11 @@ export const dispatch = (action: IAction) => {
     throw Error('[redux-ergo] You must apply the `ergoMiddleware` first.');
   }
   return _dispatch(action) as IAction;
+};
+
+export const getState = () => {
+  if (!_getState) {
+    throw Error('[redux-ergo] You must apply the `ergoMiddleware` first.');
+  }
+  return _getState() as any;
 };
