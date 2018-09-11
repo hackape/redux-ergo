@@ -35,7 +35,7 @@ export function effectDecorator(...args: any[]) {
   return desc;
 }
 
-export const update = (value: any) => ({ value, [isEffectUpdateSymbol]: true });
+export const setState = (value: any) => ({ value, [isEffectUpdateSymbol]: true });
 export const shouldUpdateState = (target: any) => Boolean(target && target[isEffectUpdateSymbol]);
 
 export function iterateGenerator(gen: Generator, onYield: ((value: any, stepId: number) => any)) {
