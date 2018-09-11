@@ -1,5 +1,5 @@
 import { getByPath, setByPath, fillInPathParams } from '../utils/path-helpers';
-// import { isPlainObject } from '../utils/is';
+import { isPlainObject, isFunction } from '../utils/is';
 import { IAction } from './transpile';
 
 const isPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
@@ -18,30 +18,43 @@ function parseAction(__nsp__, __path__, action): [boolean, string | null] {
   return [isOwnScope, method];
 }
 
-/* FIXME: temp disable derives
-const DERIVED_SYMBOL = Symbol ? Symbol('__DERIVED_SYMBOL__') : '__DERIVED_SYMBOL__';
-function applyDerives(target, derives) {
-  if (isPlainObject(target) && isPlainObject(derives)) {
-    if (target[DERIVED_SYMBOL]) return target;
-    target = { ...target };
-    Object.defineProperties(target, derives);
-    Object.defineProperty(target, DERIVED_SYMBOL, {
-      configurable: false,
-      writable: false,
-      enumerable: false,
-      value: true
-    });
+function applyDerive(derive, target, rootState) {
+  if (!derive) return target;
+
+  let derivedPropsDesc;
+  if (isPlainObject(derive)) derivedPropsDesc = derive;
+  if (isFunction(derive)) {
+    const derived = derive(target, rootState);
+    if (derived && isPlainObject(derived)) {
+      derivedPropsDesc = Object.keys(derived).reduce(
+        (descs, key) => {
+          if (target && target.hasOwnProperty && target.hasOwnProperty(key)) return descs;
+          descs[key] = {
+            configurable: true,
+            enumerable: false,
+            writable: false,
+            value: derived[key]
+          };
+          return descs;
+        },
+        {} as PropertyDescriptorMap
+      );
+    }
   }
-  return target;
+
+  try {
+    return Object.defineProperties(target, derivedPropsDesc);
+  } catch (err) {
+    return target;
+  }
 }
-*/
 
 export const gatewayFactory = (
   __nsp__: string,
   __path__: string,
   workers: { [x: string]: Function },
-  derives?: { [x: string]: PropertyDescriptor },
-  initialState?: any
+  derive?: { [x: string]: PropertyDescriptor },
+  defaultState?: any
 ) => {
   const isStablePath = !isPathPattern(__path__);
 
@@ -68,23 +81,23 @@ export const gatewayFactory = (
       }
     }
 
-    // 1. if `effectivePath` is null, there is nothing we can do, not even provide the `initialState`.
+    // 1. if `effectivePath` is null, there is nothing we can do, not even provide the `defaultState`.
     if (effectivePath === null) return rootState;
     const oldLocalState = getByPath(rootState, effectivePath);
 
-    // 2. if we have `effectivePath`, but not `worker`, we can at least provide the `initialState`
-    // equivalent to `reducer(state = initialState, action)`
-    let localState = oldLocalState === undefined ? initialState : oldLocalState;
+    // 2. if we have `effectivePath`, but not `worker`, we can at least provide the `defaultState`
+    // equivalent to `reducer(state = defaultState, action)`
+    const localState = oldLocalState === undefined ? defaultState : oldLocalState;
 
     // 3. best case, both `effectivePath` and `worker` exist.
-    if (worker) localState = worker(localState, action);
-    // const newLocalState = applyDerives(localState, derives);
-    const newLocalState = localState;
+    const newLocalState = worker ? worker(localState, action) : localState;
 
     if (newLocalState === oldLocalState) {
       return rootState;
     } else {
-      return setByPath(rootState, effectivePath, newLocalState);
+      rootState = setByPath(rootState, effectivePath, newLocalState);
+      applyDerive(derive, newLocalState, rootState);
+      return rootState;
     }
   };
 };

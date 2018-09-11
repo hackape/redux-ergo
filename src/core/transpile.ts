@@ -73,9 +73,11 @@ export function transpile(spec: any, path?: string, namespace?: string) {
   const __path__ = path || spec.path || '';
   const __nsp__ = namespace || spec.namespace || '';
 
+  const defaultState = spec.defaultState;
+
   let specReducers = {};
   let specEffects = {};
-  let specDerives = {};
+  let specDerive;
 
   const actions = {};
   const reducers = {};
@@ -97,13 +99,15 @@ export function transpile(spec: any, path?: string, namespace?: string) {
           specReducers[key] = desc.value;
         }
       } else if (isFunction(desc.get)) {
-        specDerives[key] = desc;
+        if (!specDerive) specDerive = {};
+        specDerive[key] = desc;
       }
     }
   } else {
     mode = 'FP';
     specReducers = spec.reducers;
     specEffects = spec.effects;
+    specDerive = spec.derive;
     proto = { ...specReducers, ...specEffects };
   }
 
@@ -147,7 +151,7 @@ export function transpile(spec: any, path?: string, namespace?: string) {
   return {
     actions,
     bindActions,
-    effector: gatewayFactory(__nsp__, __path__, effectors),
-    reducer: gatewayFactory(__nsp__, __path__, reducers, specDerives)
+    effector: gatewayFactory(__nsp__, __path__, effectors, specDerive, defaultState),
+    reducer: gatewayFactory(__nsp__, __path__, reducers, specDerive, defaultState)
   };
 }
