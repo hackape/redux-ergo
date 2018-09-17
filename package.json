@@ -4,6 +4,7 @@
   "description": "An ergonomic approach to work with redux",
   "main": "lib/index.js",
   "scripts": {
+    "start": "tsc -w",
     "test": "echo \"Error: no test specified\" && exit 1",
     "ts-build": "rm -rf lib && tsc --pretty",
     "prepare": "npm run ts-build"
