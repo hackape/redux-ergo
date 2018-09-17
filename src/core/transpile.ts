@@ -133,41 +133,46 @@ export function transpile(spec: any, override?: any) {
   }
 
   for (const methodName in specReducers) {
-    actions[methodName] = (...args) => ({
-      type: `${__nsp__}${__path__}/${methodName}`,
-      payload: args
-    });
+    if (__params__) {
+      actions[methodName] = (params, ...args) => ({
+        type: `${__nsp__}${__path__}/${methodName}`,
+        meta: { params },
+        payload: args
+      });
+    } else {
+      actions[methodName] = (...args) => ({
+        type: `${__nsp__}${__path__}/${methodName}`,
+        payload: args
+      });
+    }
 
     reducers[methodName] = workerFactory(mode, proto, methodName);
   }
 
   for (const methodName in specEffects) {
-    actions[methodName] = (...args) => ({
-      type: `${__nsp__}${__path__}/${methodName}`,
-      meta: { ergoEffect: true },
-      payload: args
-    });
+    if (__params__) {
+      actions[methodName] = (params, ...args) => ({
+        type: `${__nsp__}${__path__}/${methodName}`,
+        meta: { params, ergoEffect: true },
+        payload: args
+      });
+    } else {
+      actions[methodName] = (...args) => ({
+        type: `${__nsp__}${__path__}/${methodName}`,
+        meta: { ergoEffect: true },
+        payload: args
+      });
+    }
 
     effectors[methodName] = workerFactory(mode, proto, methodName);
     reducers[methodName] = (prevState: any, action: IAction) => {
       if (action.meta && action.meta.finalize) return action.payload;
-    };
-  }
-
-  const curriedActions = {};
-  for (const methodName in actions) {
-    curriedActions[methodName] = params => (...args) => {
-      const msg = actions[methodName](...args);
-      if (params) {
-        if (!msg.meta) msg.meta = {};
-        msg.meta.params = { ...params };
-      }
-      return msg;
+      return prevState;
     };
   }
 
   return {
-    actions: __params__ ? curriedActions : actions,
+    actions,
     effector: gatewayFactory(__nsp__, __path__, effectors, specDerive, defaultState),
     reducer: gatewayFactory(__nsp__, __path__, reducers, specDerive, defaultState)
   };
