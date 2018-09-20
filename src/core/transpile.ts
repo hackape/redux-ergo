@@ -1,5 +1,5 @@
 import { isFunction, isPlainObject } from '../utils/is';
-import { hasPathPattern, fillInPathParams } from '../utils/path-helpers';
+import { hasPathPattern, fillInPathParams } from './path';
 import { invariant } from '../utils/invariant';
 import { isEffect } from './effect';
 import { workerFactory, IWorkers } from './worker';

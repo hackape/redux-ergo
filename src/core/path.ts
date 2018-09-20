@@ -1,4 +1,4 @@
-import { isPlainObject } from './is';
+import { isPlainObject } from '../utils/is';
 
 export function getByPath(target, path = '') {
   const tempContext = {

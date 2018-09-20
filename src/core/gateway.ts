@@ -1,4 +1,4 @@
-import { getByPath, setByPath, fillInPathParams } from '../utils/path-helpers';
+import { getByPath, setByPath, fillInPathParams } from './path';
 import { isPlainObject, isFunction } from '../utils/is';
 import { IAction } from './transpile';
 

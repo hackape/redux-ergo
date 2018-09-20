@@ -1,5 +1,5 @@
 import { IAction } from './transpile';
-import { getByPath } from '../utils/path-helpers';
+import { getByPath } from './path';
 
 type IEffector = (state, IAction) => IAction;
 
