@@ -39,7 +39,7 @@ export const dispatch = (action: IAction) => {
   return _dispatch(action) as IAction;
 };
 
-export const getState = (path?: string) => {
+export const getState = (path: string | { toString: () => string } = '') => {
   if (!_getState) {
     throw Error('[redux-ergo] You must apply the `ergoMiddleware` first.');
   }
@@ -47,5 +47,5 @@ export const getState = (path?: string) => {
   const currentState = _getState() as any;
 
   if (!path) return currentState;
-  return getByPath(currentState, path);
+  return getByPath(currentState, String(path));
 };
