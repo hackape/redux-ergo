@@ -65,3 +65,15 @@ export const fillInPathParams = (path: string | null, pathParams: any) => {
     })
     .join('/');
 };
+
+export const validPathRegexp = /^(?:(\/:[^\/ ]+)|(?:\/[^:][^\/]*)){0,}\/?$/;
+export const isValidPath = (path: string) => validPathRegexp.test(path);
+export const hasPathPattern = (path: string) => /\/\:[^\/]+/.test(path);
+
+export function pathToRegexp(path) {
+  const reStrComps = path
+    .split('/')
+    .map(pathComp => (pathComp[0] === ':' ? '(?:([^/]+?))' : pathComp));
+
+  return new RegExp('^' + reStrComps.join('/') + '$');
+}

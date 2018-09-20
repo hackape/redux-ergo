@@ -1,4 +1,6 @@
-import { isFunction } from '../utils/is';
+import { isFunction, isPlainObject } from '../utils/is';
+import { hasPathPattern, fillInPathParams } from '../utils/path-helpers';
+import { invariant } from '../utils/invariant';
 import { isEffect } from './effect';
 import { workerFactory, IWorkers } from './worker';
 import { gatewayFactory } from './gateway';
@@ -86,13 +88,55 @@ export function transpile<S, P, R>(
   effector: (rootState: any, action: IAction) => any;
 };
 
-export function transpile(spec: any, override?: any) {
+export function transpile(spec: any, override: any = {}) {
   let mode: 'FP' | 'OO';
-  if (!override) override = {};
 
-  const __path__ = override.path || spec.path || '';
-  const __nsp__ = override.namespace || spec.namespace || '';
-  const __params__ = override.pathParams || spec.pathParams;
+  const specNsp: string = override.namespace || spec.namespace || '';
+  const specPath: string = override.path || spec.path || '/';
+  const specPathParams = override.pathParams || spec.pathParams;
+
+  // preliminary validation
+  invariant(!specNsp.includes('/'), '[redux-ergo] `namespace` must not contain "/"');
+  invariant(
+    typeof specPath === 'string' && specPath.startsWith('/'),
+    '[redux-ergo] `path` must be a string that starts with "/", got "%s".',
+    specPath
+  );
+
+  invariant(
+    specPathParams === undefined || isPlainObject(specPathParams),
+    '[redux-ergo] `pathParams` must be undefined or plain object'
+  );
+
+  const __nsp__ = specNsp;
+  const __path__ = specPath.replace(/\/{1,}$/, ''); // trim trailing slashes
+  const __params__ = specPathParams;
+
+  // preliminary validation passed, double check `path` and `pathParams`
+  if (hasPathPattern(__path__)) {
+    const paramKeys = __path__.split('/').filter(pathComp => pathComp[0] === ':');
+    if (__params__ === undefined) {
+      invariant(
+        false,
+        '[redux-ergo] Your `path` has path param patterns ' +
+          paramKeys.map(key => `"${key}"`).join(', ') +
+          ' , but you did not specify `pathParams`.'
+      );
+    } else {
+      const missedOutKeys = paramKeys.filter(key => {
+        key = key.slice(1);
+        return !Boolean(__params__[key]);
+      });
+
+      if (missedOutKeys.length) {
+        invariant(
+          false,
+          '[redux-ergo] The following path params are not declared in the `pathParams` object, please double check: ' +
+            missedOutKeys.map(key => `"${key}"`).join(', ')
+        );
+      }
+    }
+  }
 
   const defaultState = override.defaultState || spec.defaultState;
 
@@ -134,11 +178,13 @@ export function transpile(spec: any, override?: any) {
 
   for (const methodName in specReducers) {
     if (__params__) {
-      actions[methodName] = (params, ...args) => ({
-        type: `${__nsp__}${__path__}/${methodName}`,
-        meta: { params },
-        payload: args
-      });
+      actions[methodName] = (params, ...args) => {
+        const effectivePath = fillInPathParams(__path__, params);
+        return {
+          type: `${__nsp__}${effectivePath}/${methodName}`,
+          payload: args
+        };
+      };
     } else {
       actions[methodName] = (...args) => ({
         type: `${__nsp__}${__path__}/${methodName}`,
