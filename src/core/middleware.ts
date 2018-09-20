@@ -1,4 +1,5 @@
 import { IAction } from './transpile';
+import { getByPath } from '../utils/path-helpers';
 
 type IEffector = (state, IAction) => IAction;
 
@@ -38,9 +39,13 @@ export const dispatch = (action: IAction) => {
   return _dispatch(action) as IAction;
 };
 
-export const getState = () => {
+export const getState = (path?: string) => {
   if (!_getState) {
     throw Error('[redux-ergo] You must apply the `ergoMiddleware` first.');
   }
-  return _getState() as any;
+
+  const currentState = _getState() as any;
+
+  if (!path) return currentState;
+  return getByPath(currentState, path);
 };

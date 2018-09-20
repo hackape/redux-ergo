@@ -52,15 +52,13 @@ export const fillInPathParams = (path: string | null, pathParams: any) => {
   const pathComps = path.split('/');
   return pathComps
     .map(pathComp => {
-      if (pathComp[0] === ':') {
-        const pathParamValue = pathParams[pathComp.slice(1)];
-        if (pathParamValue === undefined) {
-          throw Error(`Missing path params "${pathComp}"`);
-        } else {
-          return String(pathParamValue);
-        }
+      if (pathComp[0] !== ':') return pathComp;
+
+      const pathParamValue = pathParams[pathComp.slice(1)];
+      if (pathParamValue === undefined) {
+        throw Error(`Missing path params "${pathComp}"`);
       } else {
-        return pathComp;
+        return String(pathParamValue);
       }
     })
     .join('/');
