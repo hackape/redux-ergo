@@ -1,7 +1,6 @@
 import { isFunction, isPlainObject } from '../utils/is';
 import { hasPathPattern, fillInPathParams } from './path';
 import { invariant } from '../utils/invariant';
-import { isEffect } from './effect';
 import { workerFactory, IWorkers } from './worker';
 import { gatewayFactory } from './gateway';
 
@@ -93,7 +92,7 @@ export function transpile(spec: any, override: any = {}) {
 
   const specNsp: string = override.namespace || spec.namespace || '';
   const specPath: string = override.path || spec.path || '/';
-  const specPathParams = override.pathParams || spec.pathParams;
+  const specPathParams: { [k: string]: any } = override.pathParams || spec.pathParams;
 
   // preliminary validation
   invariant(!specNsp.includes('/'), '[redux-ergo] `namespace` must not contain "/"');
@@ -123,11 +122,7 @@ export function transpile(spec: any, override: any = {}) {
           ' , but you did not specify `pathParams`.'
       );
     } else {
-      const missedOutKeys = paramKeys.filter(key => {
-        key = key.slice(1);
-        return !Boolean(__params__[key]);
-      });
-
+      const missedOutKeys = paramKeys.filter(key => !__params__.hasOwnProperty(key.slice(1)));
       if (missedOutKeys.length) {
         invariant(
           false,
@@ -141,12 +136,10 @@ export function transpile(spec: any, override: any = {}) {
   const defaultState = override.defaultState || spec.defaultState;
 
   let specReducers = {};
-  let specEffects = {};
   let specDerive;
 
   const actions = {};
   const reducers = {};
-  const effectors = {};
 
   let proto;
   if (isFunction(spec)) {
@@ -158,11 +151,7 @@ export function transpile(spec: any, override: any = {}) {
       const desc = Object.getOwnPropertyDescriptor(proto, key) || {};
 
       if (isFunction(desc.value)) {
-        if (isEffect(desc.value)) {
-          specEffects[key] = desc.value;
-        } else {
-          specReducers[key] = desc.value;
-        }
+        specReducers[key] = desc.value;
       } else if (isFunction(desc.get)) {
         if (!specDerive) specDerive = {};
         specDerive[key] = desc;
@@ -171,9 +160,8 @@ export function transpile(spec: any, override: any = {}) {
   } else {
     mode = 'FP';
     specReducers = spec.reducers;
-    specEffects = spec.effects;
     specDerive = spec.derive;
-    proto = { ...specReducers, ...specEffects };
+    proto = { ...specReducers };
   }
 
   for (const methodName in specReducers) {
@@ -195,31 +183,8 @@ export function transpile(spec: any, override: any = {}) {
     reducers[methodName] = workerFactory(mode, proto, methodName);
   }
 
-  for (const methodName in specEffects) {
-    if (__params__) {
-      actions[methodName] = (params, ...args) => ({
-        type: `${__nsp__}${__path__}/${methodName}`,
-        meta: { params, ergoEffect: true },
-        payload: args
-      });
-    } else {
-      actions[methodName] = (...args) => ({
-        type: `${__nsp__}${__path__}/${methodName}`,
-        meta: { ergoEffect: true },
-        payload: args
-      });
-    }
-
-    effectors[methodName] = workerFactory(mode, proto, methodName);
-    reducers[methodName] = (prevState: any, action: IAction) => {
-      if (action.meta && action.meta.finalize) return action.payload;
-      return prevState;
-    };
-  }
-
   return {
     actions,
-    effector: gatewayFactory(__nsp__, __path__, effectors, specDerive, defaultState),
     reducer: gatewayFactory(__nsp__, __path__, reducers, specDerive, defaultState)
   };
 }
