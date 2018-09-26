@@ -44,7 +44,7 @@ export function setByPath(target, path, value) {
   return tempContext[''];
 }
 
-export const fillInPathParams = (path: string | null, pathParams: any) => {
+export function fillInPathParams(path: string | null, pathParams: any) {
   if (typeof path !== 'string' || typeof pathParams !== 'object') {
     throw Error('Invalid path or pathParams');
   }
@@ -62,7 +62,7 @@ export const fillInPathParams = (path: string | null, pathParams: any) => {
       }
     })
     .join('/');
-};
+}
 
 export const validPathRegexp = /^(?:(\/:[^\/ ]+)|(?:\/[^:][^\/]*)){0,}\/?$/;
 export const isValidPath = (path: string) => validPathRegexp.test(path);
@@ -74,4 +74,44 @@ export function pathToRegexp(path) {
     .map(pathComp => (pathComp[0] === ':' ? '(?:([^/]+?))' : pathComp));
 
   return new RegExp('^' + reStrComps.join('/') + '$');
+}
+
+// path with smaller length comes first
+// path without pathParam comes first
+// path with deeper pathParam comes first
+export function comparePath(path1 = '', path2 = '') {
+  const p1 = path1.split('/').slice(1);
+  const p2 = path2.split('/').slice(1);
+
+  if (p1.length < p2.length) return -1;
+  if (p1.length > p2.length) return 1;
+
+  if (hasPathPattern(path1) && !hasPathPattern(path2)) {
+    return 1;
+  } else if (!hasPathPattern(path1) && hasPathPattern(path2)) {
+    return -1;
+  }
+
+  for (let i = 0; i < p1.length; i++) {
+    const c1 = p1[i];
+    const c2 = p2[i];
+    if (c1[0] === ':' && c2[0] === ':') {
+      continue;
+    } else if (c1[0] === ':') {
+      return 1;
+    } else if (c2[0] === ':') {
+      return -1;
+    }
+
+    if (c1.length < c2.length) return -1;
+    if (c1.length > c2.length) return 1;
+    if (c1 === c2) continue;
+
+    // length equal, resort to alphabetical order:
+    const c = [c1, c2].sort()[0];
+    if (c1 === c) return -1;
+    return 1;
+  }
+
+  return 0;
 }
