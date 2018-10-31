@@ -1,0 +1,6 @@
+- [x] validate spec params
+- [x] `setState()` should behave like react's `setState()`
+- [ ] entity should respond smartly based on path
+- [ ] `this` should be cached as context variable in async methods
+- [ ] doc should warn people that in FP mode async methods, prevState may get out of sync, race condition
+- [x] deprecate effect mechanism

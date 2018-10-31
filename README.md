@@ -1,3 +1,5 @@
+!!! DEFINE reducer as SERVICE !!!
+
 # redux-ergo
 
 ## Introduction

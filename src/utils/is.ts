@@ -28,7 +28,7 @@ export const isPlainObject = target => {
 
 export const isPromise = target => target instanceof Promise || (target && isFunction(target.then));
 
-export const isGenerator = target =>
+export const isIterator = target =>
   target &&
   isFunction(target['next']) &&
   isFunction(target['throw']) &&

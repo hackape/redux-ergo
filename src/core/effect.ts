@@ -1,4 +1,6 @@
 import { isFunction } from '../utils/is';
+import { invariant } from '../utils/invariant';
+
 const isEffectSymbol = Symbol('isEffect');
 const isEffectUpdateSymbol = Symbol('isEffectUpdate');
 
@@ -38,26 +40,23 @@ export function effectDecorator(...args: any[]) {
 export const setState = (value: any) => ({ value, [isEffectUpdateSymbol]: true });
 export const shouldUpdateState = (target: any) => Boolean(target && target[isEffectUpdateSymbol]);
 
-export function iterateGenerator(gen: Generator, onYield: ((value: any, stepId: number) => any)) {
-  let pendingStepPromise: Promise<any> | undefined = undefined;
+export function iterateGenerator(gen: Generator, onYielded: ((value: any, stepId: number) => any)) {
+  let pendingStepPromise: Promise<any>;
 
   const res = new Promise(function(resolve, reject) {
     let stepId = 0;
 
     function onFulfilled(res: any) {
-      pendingStepPromise = undefined;
       let ret;
       try {
         ret = gen.next(res);
+        next(ret);
       } catch (e) {
         return reject(e);
       }
-
-      next(ret);
     }
 
     function onRejected(err: any) {
-      pendingStepPromise = undefined;
       let ret;
       try {
         ret = gen.throw!(err);
@@ -68,16 +67,19 @@ export function iterateGenerator(gen: Generator, onYield: ((value: any, stepId: 
     }
 
     function next(ret: any) {
-      if (ret && typeof ret.then === 'function') {
-        // an async iterator
-        ret.then(next, reject);
-        return;
+      if (ret.done) return resolve(ret.value);
+
+      // ret is an async iterator
+      if (typeof ret.then === 'function') {
+        invariant(false, '[redux-ergo] Async generator function is not supported yet.');
       }
 
-      onYield(ret.value, stepId++);
-      if (ret.done) return resolve(ret.value);
-      pendingStepPromise = Promise.resolve(ret.value) as any;
-      return pendingStepPromise!.then(onFulfilled, onRejected);
+      if (ret.value && typeof ret.value.then === 'function') {
+        pendingStepPromise = Promise.resolve(ret.value);
+        return pendingStepPromise.then(onFulfilled, onRejected);
+      }
+
+      onYielded(ret.value, stepId++);
     }
 
     onFulfilled(undefined); // kick off the process

@@ -28,8 +28,10 @@ export function setByPath(target, path, value) {
         'setByPath: encounter an intermediate node that is neither plain object nor array'
       );
     }
-    let container = acc[comp];
-    if (index !== lastIndex) {
+    if (index === lastIndex) {
+      acc[comp] = value;
+    } else {
+      let container = acc[comp];
       if (container === undefined) {
         container = Number.isInteger(Number(comp)) ? [] : {};
       } else {
@@ -37,8 +39,6 @@ export function setByPath(target, path, value) {
       }
       acc[comp] = container;
       return acc[comp];
-    } else {
-      acc[comp] = value;
     }
   }, tempContext);
   return tempContext[''];
