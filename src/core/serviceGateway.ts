@@ -1,5 +1,5 @@
 import { comparePath, getByPath, setByPath } from './path';
-import { IAction } from './transpile';
+import { IAction } from './createService';
 import { TaskRunner } from './task';
 import { getStateFactory } from './getState';
 import { parseAction } from './action';
